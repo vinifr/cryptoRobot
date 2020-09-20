@@ -5,4 +5,4 @@ crypto robô para operar no Mercado Bitcoin
 
 - Install the dependencies
 
-# apt install libcurl4-openssl-dev libjansson-dev
+ apt install libcurl4-openssl-dev libjansson-dev
