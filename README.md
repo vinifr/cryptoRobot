@@ -3,11 +3,11 @@ crypto robot to trade crypto coins on brazilian exchange Mercado Bitcoin.
 
 crypto robô para operar no Mercado Bitcoin
 
-- Install the dependencies
+# Install the dependencies
 
  apt install libcurl4-openssl-dev libjansson-dev
 
-Donations
+# Donations
 
 1. Bitcoin address: 3K299PU6dVdTjJq99NPXsRqKU8JjA3ZUuC
 
