@@ -234,8 +234,7 @@ string getCoinMinOrder(COIN_ID val)
     minQtd = atof(minVal.c_str());
     feeDig = minQtd * feeLimit;
     // min quantity buy
-    minQtdBuy = minQtd;
-    minQtdBuy += (minQtd * 0.003009);
+    minQtdBuy = (minQtd * 1.004);
     //minQtdBuy += feeDig;
     feeDigBuy = minQtdBuy * feeLimit;
     //cout << "minQtdBuy = " << minQtdBuy << endl;
@@ -536,12 +535,12 @@ void parseTickerResp(const char *resp)
         sell = atof(json_string_value(json_object_get(obj, "sell")));
         sell_limit = to_string_precision(sell - getCoinDecimal(curCoinId));
         sellPrice = atof(sell_limit.c_str());
-        cout << "sell=" << to_string_precision(sell) << ", sell_limit = " << sell_limit << endl;
+        cout << "sell = " << to_string_precision(sell) << ", sell_limit = " << sell_limit << endl;
         //
         buy = atof(json_string_value(json_object_get(obj, "buy")));
         buy_limit = to_string_precision(buy + getCoinDecimal(curCoinId));
         buyPrice = atof(buy_limit.c_str());
-        cout << "buy=" << to_string_precision(buy) << ", buy_limit = " << buy_limit << endl;
+        cout << "buy  = " << to_string_precision(buy) << ", buy_limit  = " << buy_limit << endl;
         //
         //cout << "minQtdBuy = " << minQtdBuy << ", feeDigBuy = " << feeDigBuy << endl;
         // spread atual
@@ -549,15 +548,15 @@ void parseTickerResp(const char *resp)
         fee = (feeDigBuy * buyPrice) + (feeDig * sellPrice);
         gain = sellPrice * (minQtd-feeDig) - buyPrice * (minQtdBuy+feeDigBuy);
 
-        printf("spread = %.4f, gain_spread = R$ %.4f, fee = R$ %.4f\n", spread, gain, fee);
+        printf("spreadCur    = %.4f, gain_spread = R$ %.4f, fee = R$ %.4f\n", spread, gain, fee);
         // spread alvo
         sellTarget = buyPrice + spreadTarget;
         sellTargetStr = to_string_precision(sellTarget);
-        spread = sellTarget - buyPrice;
+        //spread = sellTarget - buyPrice;
         fee = (feeDig * sellTarget) + (feeDigBuy * buyPrice);
         gain = sellTarget * (minQtd-feeDig) - buyPrice * (minQtdBuy+feeDigBuy);
-        printf("spread = %.4f, gain_Target = R$ %.4f, fee = R$ %.4f\n", spread, gain, fee);
-        cout << "sellTarget = " << sellTargetStr << endl;
+        printf("spreadTarget = %.4f, gain_Target = R$ %.4f, fee = R$ %.4f\n", spreadTarget, gain, fee);
+        //cout << "sellTarget = " << sellTargetStr << endl;
         json_decref(root);
     }
 }
