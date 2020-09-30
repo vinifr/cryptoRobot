@@ -12,6 +12,12 @@
 #define STATUS_ORDER_CANCELED   3
 #define STATUS_ORDER_FILLED     4
 
+// taxa de 0.3% para ordens limitadas
+// Taxa acrescimo  = 1+0.003     = 1.003
+// Taxa descrescimo= 1-(2*0.003) = 0.994
+#define FEE_ADD     1.003
+#define FEE_SUB     0.994
+
 using namespace std;
 
 enum Tapi_Method {
@@ -55,9 +61,11 @@ string coinStr = "BTC";
 COIN_ID curCoinId = BTC;
 
 // Variables
+double g_gainPerc;
 double high, low, last, buy = 0, sell = 0, spread = 0;
 double buyPrice, sellPrice;
 double gain; // ganho em reais
+double spreadCur;
 double spreadTarget; // alvo de ganho
 double sellTarget; // preco para ganhar o spreadTarget
 string sellTargetStr;
@@ -101,6 +109,34 @@ const double XRP_DECIMAL = 0.0001;
 const double feeTotal = 0.01; // 1% = 0.003(buy) + 0.007(sell);
 const double feeLimit = 0.003;
 const double feeMarket = 0.007;
+
+// Calcula preco de venda dado o gain, buy e qtdBuy
+// sell = (gain+1.003*buy*qtdBuy) / 0.994*qtdBuy
+double calcSellGain(double gain, double buy, double qtdBuy)
+{
+    return (gain+FEE_ADD*buy*qtdBuy) / (FEE_SUB*qtdBuy);
+}
+
+// Calcula preco de venda dado gainPerc e buy
+// sell = (buy*gainPerc+1.003*buy)/0.994
+double calcSellGainPerc(double gainPerc, double buy)
+{
+    return ((buy*gainPerc+FEE_ADD*buy)/FEE_SUB);
+}
+
+// Calcula gain em % dado sell e buy
+// gain% = -1.003 + 0.994sell/buy
+double calcGainPerc(double sell, double buy)
+{
+    return (100*(-FEE_ADD + FEE_SUB*sell/buy));
+}
+
+// Calcula gain em BRL dado qtdBuy, buy e sell
+// gainBRL = qtdBuy * (-1.003*buy + 0.994*sell)
+double calcGain(double qtdBuy, double buy, double sell)
+{
+    return (qtdBuy * (-FEE_ADD*buy + FEE_SUB*sell));
+}
 
 template <typename T>
 std::string to_string_precision(const T a_value, const int n = 4)
@@ -513,50 +549,52 @@ void parseListOrderResp(const char *resp, size_t total)
     }
 }
 
-void parseTickerResp(const char *resp)
+void parseTickerResp(const char *resp, bool debug)
 {
     json_t *root, *obj;
     json_error_t error;
+    string str;
 
     root = json_loads(resp, 0, &error );
     if (root) {
+        //cout << "response" << resp << endl;
 
         obj = json_object_get(root, "ticker");
         //
         high = atof(json_string_value(json_object_get(obj, "high")));
-        printf("high = %.4f ", high);
-        //
+
         low = atof(json_string_value(json_object_get(obj, "low")));
-        printf("low = %.4f ", low);
-        //
-        last = atof(json_string_value(json_object_get(obj, "last")));
-        printf("last = %.4f\n", last);
+
+        last =
+            atof(to_string_precision(json_string_value(json_object_get(obj, "last"))).c_str());
         //
         sell = atof(json_string_value(json_object_get(obj, "sell")));
         sell_limit = to_string_precision(sell - getCoinDecimal(curCoinId));
         sellPrice = atof(sell_limit.c_str());
-        cout << "sell = " << to_string_precision(sell) << ", sell_limit = " << sell_limit << endl;
+        //if (debug == true)
         //
+        //buyPrice = buy;
         buy = atof(json_string_value(json_object_get(obj, "buy")));
-        buy_limit = to_string_precision(buy + getCoinDecimal(curCoinId));
-        buyPrice = atof(buy_limit.c_str());
-        cout << "buy  = " << to_string_precision(buy) << ", buy_limit  = " << buy_limit << endl;
+        buyPrice = atof(to_string_precision(buy).c_str());
+        buy_limit = to_string_precision(buyPrice);
         //
-        //cout << "minQtdBuy = " << minQtdBuy << ", feeDigBuy = " << feeDigBuy << endl;
-        // spread atual
-        spread = sellPrice - buyPrice;
-        fee = (feeDigBuy * buyPrice) + (feeDig * sellPrice);
-        gain = sellPrice * (minQtd-feeDig) - buyPrice * (minQtdBuy+feeDigBuy);
-
-        printf("spreadCur    = %.4f, gain_spread = R$ %.4f, fee = R$ %.4f\n", spread, gain, fee);
-        // spread alvo
-        sellTarget = buyPrice + spreadTarget;
+        if (g_gainPerc > 0)
+            sellTarget = calcSellGainPerc(g_gainPerc, buy);
+        //
         sellTargetStr = to_string_precision(sellTarget);
-        //spread = sellTarget - buyPrice;
-        fee = (feeDig * sellTarget) + (feeDigBuy * buyPrice);
-        gain = sellTarget * (minQtd-feeDig) - buyPrice * (minQtdBuy+feeDigBuy);
-        printf("spreadTarget = %.4f, gain_Target = R$ %.4f, fee = R$ %.4f\n", spreadTarget, gain, fee);
-        //cout << "sellTarget = " << sellTargetStr << endl;
+        spreadTarget = sellTarget - buyPrice;
+        //
+        spreadCur = sellPrice - buyPrice;
+        if (debug == true) {
+            cout << "sell = " << sell << "; sellTarget = " << sellTargetStr << endl;
+            cout << "buy  = " << buy << "; buyPrice   = " << buy_limit << endl;
+            cout << "spreadCur    = " << to_string_precision(spreadCur) << endl;
+            cout << "spreadTarget = " << to_string_precision(spreadTarget) << endl;
+        }
+        if (sellPrice > sellTarget) {
+            sellTargetStr = to_string_precision(sellPrice);
+        }
+
         json_decref(root);
     }
 }
@@ -625,7 +663,7 @@ void send_request(Tapi_Method reqID)
         case METHOD_SELL_LIMIT:
             method = HTT_PUT;
             url = REQUEST_HOST + REQUEST_PATH;
-            if (spreadTarget != 0)
+            if (g_gainPerc != 0)
                 tapi_mac = getBuySellLimit(1, getCoinMinOrder(curCoinId), sellTargetStr, currentCoin);
             else
                 tapi_mac = getBuySellLimit(1, getCoinMinOrder(curCoinId), sell_limit, currentCoin);
@@ -695,7 +733,7 @@ void send_request(Tapi_Method reqID)
     switch(reqID)
     {
         case METHOD_TICKER:
-            parseTickerResp(response.c_str());
+            parseTickerResp(response.c_str(), 1);
             break;
 
         case METHOD_LIST_ORDER:
@@ -731,6 +769,8 @@ void send_request(Tapi_Method reqID)
 int main(int argc, char *argv[])
 {
     int id;
+    // default 0.5% gain
+    g_gainPerc = 0.005;
 
     cout << "0=BCH, 1=BTC, 2=CHZ, 3=ETH, 4=LTC, 5=PAXG, 6=USDC, 7=WBX, 8=XRP" << endl;
     cout << "Enter coin to operation: ";
@@ -740,8 +780,10 @@ int main(int argc, char *argv[])
     coinStr = getCoinString(curCoinId);
     getCoinMinOrder(curCoinId);
     spreadTarget = 0;
-    cout << "Enter spreadTarget: ";
-    cin >> spreadTarget;
+    //
+    cout << "percentage gain(eg: 0.7): ";
+    cin >> g_gainPerc;
+    g_gainPerc = g_gainPerc / 100;
 
     while(1) {
         cout << "0=Ticker, 1=ListOrder, 2=GetOrder, 3=Buy, 4=Sell," \
