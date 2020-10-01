@@ -13,7 +13,7 @@ crypto robô para operar no Mercado Bitcoin
 
 2. Ethereum address: 0x80aac844f39b478c699d1c0c8bc2e6c9c9e02026
 
-3. Tron address: TG9Ybij58AHQjuJeU8uLPxwWEh2a3pdM43
+3. Tron address: TKLVUCkcfrqCyqRP3vR5UCNkMqCwWZwmmU
 
 4. XRP address: rnW8je5SsuFjkMSWkgfXvqZH3gLTpXxfFH
 
